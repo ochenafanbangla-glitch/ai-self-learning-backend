@@ -44,18 +44,26 @@ class UpdateRequest(BaseModel):
 def read_root():
     return {
         "status": "AI Backend is running", 
-        "version": "2.1.0",
-        "optimization": "Advanced Confidence Normalization & Pattern Boosting"
+        "version": "2.2.0",
+        "optimization": "Force Prediction & Alternative Logic Search"
     }
 
 @app.post("/predict")
 def get_prediction(request: PredictionRequest):
     # Use Advanced AI Processor for optimized prediction and confidence
-    final_pred, optimized_conf, is_inverted = ai_processor.get_optimized_prediction(
+    # UPDATED: Now returns a dict with more info including warning_color
+    result = ai_processor.get_optimized_prediction(
         request.history, request.sensor_outputs
     )
     
+    final_pred = result["prediction"]
+    optimized_conf = result["confidence"]
+    is_inverted = result["is_inverted"]
+    warning_color = result["warning_color"]
+    logic_used = result["logic_used"]
+    
     # Check Recovery Mode (Using optimized confidence)
+    # UPDATED: should_signal is now always True (No "Wait" mode)
     bet_amount, should_signal = recovery.get_bet_strategy(optimized_conf)
     
     # Get Heatmap Data
@@ -66,9 +74,11 @@ def get_prediction(request: PredictionRequest):
         "prediction": final_pred,
         "confidence": round(optimized_conf, 2),
         "bet_amount": bet_amount,
-        "should_signal": should_signal,
+        "should_signal": should_signal, # Always True now
         "heatmap": heatmap_data,
         "is_inverted": is_inverted,
+        "warning_color": warning_color, # New: Orange for high risk, Green for low risk
+        "logic_used": logic_used,
         "recovery_mode": recovery.total_loss > 0
     }
 

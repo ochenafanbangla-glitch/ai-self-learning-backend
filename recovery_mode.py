@@ -9,7 +9,7 @@ class MartingaleRecovery:
     def get_bet_strategy(self, confidence):
         """
         Returns the recommended bet amount and whether to signal.
-        Only signals if confidence is high enough during recovery.
+        UPDATED: Now always returns should_signal=True to remove 'Wait' mode.
         """
         if self.total_loss == 0:
             return self.base_bet, True # Normal bet
@@ -20,11 +20,10 @@ class MartingaleRecovery:
             return self.base_bet, True
 
         # Calculate recovery bet: (Total Loss + Base Bet)
-        # Assuming 1:1 payout for simplicity
         recovery_bet = self.total_loss + self.base_bet
         
-        # Only signal if confidence is high
-        should_signal = confidence >= self.confidence_threshold
+        # ALWAYS signal as per client requirement (No "Wait" mode)
+        should_signal = True
         
         return recovery_bet, should_signal
 
@@ -38,8 +37,3 @@ class MartingaleRecovery:
     def reset(self):
         self.total_loss = 0
         self.current_step = 0
-
-# Example usage:
-# recovery = MartingaleRecovery()
-# bet, signal = recovery.get_bet_strategy(0.9)
-# recovery.update_result(False, bet)

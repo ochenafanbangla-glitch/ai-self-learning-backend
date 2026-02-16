@@ -17,7 +17,6 @@ class AdvancedAIProcessor:
         consecutive_errors = pattern_data.get("consecutive_errors", 0)
         
         # 1. Normalization: Ensure base confidence isn't too low if sensors agree
-        # If confidence is < 20% but sensors agree, it's likely a calculation artifact
         normalized_conf = max(base_confidence, 30.0) if base_confidence > 0 else 50.0
         
         # 2. Pattern Boosting: If a pattern has high success, boost confidence
@@ -38,14 +37,55 @@ class AdvancedAIProcessor:
         # Cap confidence between 5% and 99%
         return max(5.0, min(99.0, normalized_conf))
 
+    def get_alternative_prediction(self, history):
+        """
+        Secondary Logic: Last 3 Period Calculation (Simple Trend Analysis)
+        If Trend Analysis fails, this acts as the fallback.
+        """
+        if not history or len(history) < 3:
+            return "Big" # Default fallback
+        
+        # Count Big/Small in last 3 periods
+        last_3 = history[-3:]
+        big_count = last_3.count("Big")
+        small_count = last_3.count("Small")
+        
+        # Predict the majority (Simple Trend Following)
+        return "Big" if big_count >= small_count else "Small"
+
     def get_optimized_prediction(self, history, sensor_outputs):
-        # Get base prediction and confidence from dynamic weighting
+        # 1. Primary Logic: Weighted Sensors
         base_pred, base_conf = self.dynamic_weighting.get_weighted_prediction(sensor_outputs)
         
-        # Apply pattern matrix inversion logic
-        final_pred = self.pattern_matrix.predict(history, base_pred)
+        # 2. Check if Confidence is low (e.g., < 60%)
+        # If low, we check alternative logic
+        final_pred = base_pred
+        is_alternative_used = False
         
-        # Calculate boosted confidence
+        if base_conf < 0.6:
+            alt_pred = self.get_alternative_prediction(history)
+            # If alternative logic gives a result, we can use it or blend it
+            # For "Best Alternative Search", we'll switch if primary is weak
+            final_pred = alt_pred
+            is_alternative_used = True
+            # Boost confidence slightly because we found an alternative path
+            base_conf = max(base_conf, 0.65) 
+
+        # 3. Apply pattern matrix inversion logic (Final Safety Layer)
+        final_pred = self.pattern_matrix.predict(history, final_pred)
+        
+        # 4. Calculate boosted confidence
         optimized_conf = self.calculate_boosted_confidence(history, base_pred, base_conf * 100)
         
-        return final_pred, optimized_conf, (final_pred != base_pred)
+        # 5. Color Coding Logic (Silent Safety)
+        # Risk High (Confidence < 75%) -> Orange
+        # Risk Low (Confidence >= 75%) -> Green
+        warning_color = "Green" if optimized_conf >= 75.0 else "Orange"
+        
+        return {
+            "prediction": final_pred,
+            "confidence": optimized_conf,
+            "is_inverted": (final_pred != base_pred),
+            "warning_color": warning_color,
+            "logic_used": "Alternative" if is_alternative_used else "Primary"
+        }
