@@ -1,5 +1,5 @@
 {
-    "round_counter": 1,
+    "round_counter": 2,
     "weights": {
         "CID Sensor": 1.0,
         "Dragon Logic": 1.0,
@@ -8,6 +8,6 @@
     "temp_performance": {
         "CID Sensor": 0,
         "Dragon Logic": 0,
-        "Trend Sensor": 1
+        "Trend Sensor": 2
     }
 }

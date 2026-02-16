@@ -9,15 +9,17 @@ from dynamic_weighting import DynamicWeighting
 from recovery_mode import MartingaleRecovery
 from heatmap import MarketHeatmap
 from database import GameDatabase
+from advanced_logic import AdvancedAIProcessor
 
-app = FastAPI(title="Self-Learning AI Backend (Optimized)")
+app = FastAPI(title="Self-Learning AI Backend (Advanced)")
 
 # Initialize components
 pattern_matrix = PatternErrorMatrix()
 dynamic_weighting = DynamicWeighting(["CID Sensor", "Dragon Logic", "Trend Sensor"])
-recovery = MartingaleRecovery(confidence_threshold=0.85) # 85% threshold as requested
+recovery = MartingaleRecovery(confidence_threshold=85.0) # Threshold updated to match percentage
 heatmap = MarketHeatmap(window_size=100)
 db = GameDatabase()
+ai_processor = AdvancedAIProcessor(pattern_matrix, dynamic_weighting)
 
 # Load existing data into heatmap from DB
 recent_outcomes = db.get_recent_results(100)
@@ -42,37 +44,31 @@ class UpdateRequest(BaseModel):
 def read_root():
     return {
         "status": "AI Backend is running", 
-        "version": "2.0.0",
-        "features": [
-            "Pattern Error Matrix (3-Loss Inversion)", 
-            "Dynamic Weighting (5-Round Update)", 
-            "Martingale-Safe Recovery (>85% Confidence)", 
-            "Live Market Heatmap"
-        ]
+        "version": "2.1.0",
+        "optimization": "Advanced Confidence Normalization & Pattern Boosting"
     }
 
 @app.post("/predict")
 def get_prediction(request: PredictionRequest):
-    # 1. Get weighted prediction from sensors
-    base_pred, confidence = dynamic_weighting.get_weighted_prediction(request.sensor_outputs)
+    # Use Advanced AI Processor for optimized prediction and confidence
+    final_pred, optimized_conf, is_inverted = ai_processor.get_optimized_prediction(
+        request.history, request.sensor_outputs
+    )
     
-    # 2. Apply Pattern Error Matrix (Self-Learning with 3-loss inversion)
-    final_pred = pattern_matrix.predict(request.history, base_pred)
+    # Check Recovery Mode (Using optimized confidence)
+    bet_amount, should_signal = recovery.get_bet_strategy(optimized_conf)
     
-    # 3. Check Recovery Mode (Only if confidence > 85%)
-    bet_amount, should_signal = recovery.get_bet_strategy(confidence)
-    
-    # 4. Get Heatmap Data
+    # Get Heatmap Data
     heatmap_data = heatmap.get_heatmap_data()
     
     return {
         "period": request.period,
         "prediction": final_pred,
-        "confidence": round(confidence * 100, 2),
+        "confidence": round(optimized_conf, 2),
         "bet_amount": bet_amount,
         "should_signal": should_signal,
         "heatmap": heatmap_data,
-        "is_inverted": final_pred != base_pred,
+        "is_inverted": is_inverted,
         "recovery_mode": recovery.total_loss > 0
     }
 
