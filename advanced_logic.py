@@ -57,30 +57,35 @@ class AdvancedAIProcessor:
         # 1. Primary Logic: Weighted Sensors
         base_pred, base_conf = self.dynamic_weighting.get_weighted_prediction(sensor_outputs)
         
-        # 2. Check if Confidence is low (e.g., < 60%)
-        # If low, we check alternative logic
+        # 2. Force Prediction: No more "Wait" logic.
+        # Even if confidence is low, we pick the best available.
         final_pred = base_pred
         is_alternative_used = False
         
-        if base_conf < 0.6:
+        # If base confidence is very low, we still use it but mark it.
+        # Client requested: Algorithm যাকেই এগিয়ে দেখবে সেটিকেই রেজাল্ট হিসেবে দেখাবে।
+        if base_conf < 0.5:
+            # If sensors are split or weak, check alternative logic
             alt_pred = self.get_alternative_prediction(history)
-            # If alternative logic gives a result, we can use it or blend it
-            # For "Best Alternative Search", we'll switch if primary is weak
             final_pred = alt_pred
             is_alternative_used = True
-            # Boost confidence slightly because we found an alternative path
-            base_conf = max(base_conf, 0.65) 
-
+        
         # 3. Apply pattern matrix inversion logic (Final Safety Layer)
         final_pred = self.pattern_matrix.predict(history, final_pred)
         
         # 4. Calculate boosted confidence
         optimized_conf = self.calculate_boosted_confidence(history, base_pred, base_conf * 100)
         
-        # 5. Color Coding Logic (Silent Safety)
-        # Risk High (Confidence < 75%) -> Orange
-        # Risk Low (Confidence >= 75%) -> Green
-        warning_color = "Green" if optimized_conf >= 75.0 else "Orange"
+        # 5. Color Coding System (Traffic Light Logic):
+        # Green: Confidence > 80% (Safe)
+        # Yellow: Confidence 60% - 79% (Medium Risk)
+        # Red: Confidence < 60% (High Risk, but show result)
+        if optimized_conf >= 80.0:
+            warning_color = "Green"
+        elif 60.0 <= optimized_conf < 80.0:
+            warning_color = "Yellow"
+        else:
+            warning_color = "Red"
         
         return {
             "prediction": final_pred,
