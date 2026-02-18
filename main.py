@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from typing import List, Dict, Optional
 import uvicorn
@@ -42,8 +43,13 @@ class UpdateRequest(BaseModel):
     bet_amount: float
     confidence: float
 
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 def read_root():
+    with open("index.html", "r") as f:
+        return f.read()
+
+@app.get("/api/status")
+def get_api_status():
     return {
         "status": "AI Backend is running", 
         "version": "3.0.0",

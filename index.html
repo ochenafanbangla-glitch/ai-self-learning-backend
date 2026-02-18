@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Master Pro - Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .history-row { transition: all 0.5s ease; }
+        .new-row { background-color: #fef3c7; }
+    </style>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-8 text-center text-blue-600">AI Master Pro - Control Panel</h1>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+            <!-- Prediction Card -->
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold mb-4">Live Prediction</h2>
+                <div id="prediction-box" class="text-center p-4 border-2 border-dashed border-gray-300 rounded">
+                    <p class="text-gray-500">Waiting for prediction...</p>
+                </div>
+                <div id="source-box" class="mt-4 text-sm text-gray-600 font-mono"></div>
+                <button onclick="getPrediction()" class="mt-6 w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600 transition">Get Prediction</button>
+            </div>
+
+            <!-- Input Card -->
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold mb-4">Input Actual Result</h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Actual Outcome</label>
+                        <select id="actual-outcome" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                            <option value="Big">Big</option>
+                            <option value="Small">Small</option>
+                        </select>
+                    </div>
+                    <button onclick="updateResult()" class="w-full bg-green-500 text-white py-2 rounded hover:bg-green-600 transition">Submit Result</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- History Table -->
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h2 class="text-xl font-semibold mb-4">Live History</h2>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Period</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prediction</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actual</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Result</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-body" class="bg-white divide-y divide-gray-200">
+                        <!-- Rows will be added here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentPrediction = null;
+        let currentPeriod = Date.now().toString().slice(-6);
+
+        async function getPrediction() {
+            const history = ["Big", "Small", "Big", "Small", "Big"];
+            const sensor_outputs = {
+                "CID Sensor": "Big",
+                "Dragon Logic": "Small",
+                "Trend Sensor": "Big"
+            };
+
+            const response = await fetch('/predict', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    period: currentPeriod,
+                    history: history,
+                    sensor_outputs: sensor_outputs
+                })
+            });
+
+            const data = await response.json();
+            currentPrediction = data;
+
+            const box = document.getElementById('prediction-box');
+            box.innerHTML = `
+                <p class="text-4xl font-bold ${data.prediction === 'Big' ? 'text-red-500' : 'text-green-500'}">${data.prediction}</p>
+                <p class="text-sm text-gray-500 mt-2">Confidence: ${data.confidence}%</p>
+            `;
+            
+            const sourceBox = document.getElementById('source-box');
+            sourceBox.innerHTML = `Source: <span class="text-blue-600">${data.logic_used}</span>`;
+        }
+
+        async function updateResult() {
+            if (!currentPrediction) {
+                alert("Please get a prediction first!");
+                return;
+            }
+
+            const actual = document.getElementById('actual-outcome').value;
+            
+            const response = await fetch('/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    period: currentPeriod,
+                    history: ["Big", "Small", "Big", "Small", "Big"],
+                    sensor_outputs: {
+                        "CID Sensor": "Big",
+                        "Dragon Logic": "Small",
+                        "Trend Sensor": "Big"
+                    },
+                    prediction: currentPrediction.prediction,
+                    actual_outcome: actual,
+                    bet_amount: 10,
+                    confidence: currentPrediction.confidence
+                })
+            });
+
+            const data = await response.json();
+            
+            // Add to history table instantly
+            addToHistory(currentPeriod, currentPrediction.prediction, actual);
+            
+            // Reset for next round
+            currentPrediction = null;
+            currentPeriod = (parseInt(currentPeriod) + 1).toString();
+            document.getElementById('prediction-box').innerHTML = '<p class="text-gray-500">Waiting for next prediction...</p>';
+            document.getElementById('source-box').innerHTML = '';
+        }
+
+        function addToHistory(period, prediction, actual) {
+            const tbody = document.getElementById('history-body');
+            const isWin = prediction === actual;
+            const row = document.createElement('tr');
+            row.className = 'history-row new-row';
+            row.innerHTML = `
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${period}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${prediction}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${actual}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-bold ${isWin ? 'text-green-600' : 'text-red-600'}">${isWin ? 'WIN' : 'LOSS'}</td>
+            `;
+            
+            tbody.insertBefore(row, tbody.firstChild);
+            
+            // Remove highlight after 2 seconds
+            setTimeout(() => {
+                row.classList.remove('new-row');
+            }, 2000);
+        }
+    </script>
+</body>
+</html>
