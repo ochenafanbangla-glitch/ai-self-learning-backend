@@ -3,3 +3,8 @@ uvicorn
 pydantic
 python-multipart
 requests
+scikit-learn
+xgboost
+pandas
+numpy
+joblib

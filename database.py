@@ -48,3 +48,11 @@ class GameDatabase:
         results = [row[0] for row in cursor.fetchall()]
         conn.close()
         return results
+
+    def cleanup_old_data(self, days=7):
+        from datetime import datetime, timedelta
+        conn = sqlite3.connect(self.db_path)
+        cutoff = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d %H:%M:%S')
+        conn.execute("DELETE FROM game_results WHERE timestamp < ?", (cutoff,))
+        conn.commit()
+        conn.close()

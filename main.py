@@ -10,6 +10,7 @@ from recovery_mode import MartingaleRecovery
 from heatmap import MarketHeatmap
 from database import GameDatabase
 from advanced_logic import AdvancedAIProcessor
+from ensemble_models import EnsembleManager
 
 app = FastAPI(title="Self-Learning AI Backend (Advanced)")
 
@@ -20,6 +21,7 @@ recovery = MartingaleRecovery(confidence_threshold=85.0) # Threshold updated to 
 heatmap = MarketHeatmap(window_size=100)
 db = GameDatabase()
 ai_processor = AdvancedAIProcessor(pattern_matrix, dynamic_weighting)
+ensemble_manager = EnsembleManager()
 
 # Load existing data into heatmap from DB
 recent_outcomes = db.get_recent_results(100)
@@ -44,26 +46,34 @@ class UpdateRequest(BaseModel):
 def read_root():
     return {
         "status": "AI Backend is running", 
-        "version": "2.2.0",
-        "optimization": "Force Prediction & Alternative Logic Search"
+        "version": "3.0.0",
+        "optimization": "12-Model Ensemble Strategy"
     }
 
 @app.post("/predict")
 def get_prediction(request: PredictionRequest):
-    # Use Advanced AI Processor for optimized prediction and confidence
-    # UPDATED: Now returns a dict with more info including warning_color
-    result = ai_processor.get_optimized_prediction(
+    # 1. Get Ensemble Prediction (Top 3 Models)
+    ensemble_result = ensemble_manager.predict_ensemble(request.history)
+    
+    # 2. Get Advanced AI Processor prediction
+    ai_result = ai_processor.get_optimized_prediction(
         request.history, request.sensor_outputs
     )
     
-    final_pred = result["prediction"]
-    optimized_conf = result["confidence"]
-    is_inverted = result["is_inverted"]
-    warning_color = result["warning_color"]
-    logic_used = result["logic_used"]
+    # Hybrid Logic: If ensemble has high confidence, use it. Otherwise fallback to AI processor.
+    if ensemble_result["confidence"] >= 66:
+        final_pred = ensemble_result["prediction"]
+        optimized_conf = ensemble_result["confidence"]
+        logic_used = f"Ensemble ({', '.join(ensemble_result['models_used'])})"
+    else:
+        final_pred = ai_result["prediction"]
+        optimized_conf = ai_result["confidence"]
+        logic_used = ai_result["logic_used"]
+    
+    is_inverted = ai_result["is_inverted"]
+    warning_color = ai_result["warning_color"]
     
     # Check Recovery Mode (Using optimized confidence)
-    # UPDATED: should_signal is now always True (No "Wait" mode)
     bet_amount, should_signal = recovery.get_bet_strategy(optimized_conf)
     
     # Get Heatmap Data
@@ -74,10 +84,10 @@ def get_prediction(request: PredictionRequest):
         "prediction": final_pred,
         "confidence": round(optimized_conf, 2),
         "bet_amount": bet_amount,
-        "should_signal": should_signal, # Always True now
+        "should_signal": should_signal,
         "heatmap": heatmap_data,
         "is_inverted": is_inverted,
-        "warning_color": warning_color, # New: Orange for high risk, Green for low risk
+        "warning_color": warning_color,
         "logic_used": logic_used,
         "recovery_mode": recovery.total_loss > 0
     }
@@ -97,7 +107,10 @@ def update_system(request: UpdateRequest):
     # 4. Update Heatmap
     heatmap.add_result(request.actual_outcome)
     
-    # 5. Save to Database
+    # 5. Update Ensemble Models & Performance
+    ensemble_manager.record_actual_outcome(request.period, request.history, request.actual_outcome)
+    
+    # 6. Save to Database
     db.save_result(
         request.period, 
         request.history, 
@@ -106,6 +119,9 @@ def update_system(request: UpdateRequest):
         request.confidence, 
         request.bet_amount
     )
+    
+    # 7. Daily Cleanup
+    ensemble_manager.cleanup_old_data(days=7)
     
     return {"status": "success", "message": f"System updated for period {request.period}"}
 
@@ -122,6 +138,10 @@ def get_stats():
         "learning_stats": {
             "round_counter": dynamic_weighting.round_counter,
             "patterns_learned": len(pattern_matrix.matrix)
+        },
+        "ensemble_stats": {
+            "top_3": ensemble_manager.get_top_3(),
+            "all_performances": {name: round(perf["accuracy"], 4) for name, perf in ensemble_manager.performance.items()}
         }
     }
 

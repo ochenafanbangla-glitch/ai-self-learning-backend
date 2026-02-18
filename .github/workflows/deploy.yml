@@ -1,0 +1,35 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install scikit-learn xgboost pandas numpy joblib
+          
+      - name: Run Tests
+        run: |
+          # Add test commands here if available
+          python test_logic.py
+          
+      - name: Deploy to Vercel
+        if: success()
+        run: |
+          echo "Deploying to Vercel..."
+          # Note: In a real scenario, you would use Vercel CLI with tokens
+          # For this brief, we assume the connection is already set up in Vercel dashboard
+          # and it triggers on every push to the master branch.
